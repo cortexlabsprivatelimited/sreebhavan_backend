@@ -1,0 +1,4376 @@
+{
+  "info": {
+    "name": "Sreebhavan API",
+    "_postman_id": "6c1f3f7e-6b7e-4d43-9a8e-5b1f2d1c9a01",
+    "description": "# Sreebhavan API: Postman collection\n\nThis collection covers every endpoint of the FastAPI backend: 93 requests in 17 folders. Login runs once, and\nthe token is reused by every admin request. Requests that create records save the new IDs, so the next\nrequests (update, delete) work without copying anything by hand. Every response is checked against the\nstandard format (`success`, `status_code`, `message`, then `data` or `errors`).\n\n| File | What it is |\n|---|---|\n| `Sreebhavan-API.postman_collection.json` | The collection |\n| `Sreebhavan-Local.postman_environment.json` | Environment for `http://localhost:8000` |\n| `Sreebhavan-Staging.postman_environment.json` | Template for a deployed server; fill in the URL |\n| `sample.png` | Image used by *Uploads › Upload file* |\n\n## 1. Import\n\n1. Open Postman and click **Import**.\n2. Drop in the collection and the environment file(s).\n3. In the top-right environment picker, choose **Sreebhavan · Local** (or Staging).\n\n## 2. Set the environment\n\nClick the environment's eye icon, then **Edit**, and set:\n\n| Variable | Example | Notes |\n|---|---|---|\n| `baseUrl` | `http://localhost:8000/api/v1` | Must end in `/api/v1` |\n| `adminEmail` | `owner@example.com` | An admin created with `python -m app.cli create-owner` |\n| `adminPassword` | your password | Stored as a secret |\n\nOnly these three go in the environment. Everything else (the token, saved IDs, dates) is kept in the\ncollection's own variables, which the scripts fill in.\n\n## 3. Start the API\n\n```bash\nuv run uvicorn app.main:app --reload    # http://localhost:8000, Swagger at /docs\n```\n\n## 4. Use it\n\n- **One request at a time:** run **1. Auth › Login** first, then any request. Requests that need an ID (for\n  example *Update room*) skip themselves until the request that creates it (*Create room*) has run. The\n  Postman console shows \"Skipped: …\" when that happens.\n- **Everything at once:** right-click the collection, choose **Run collection**, then **Run**. The folders\n  run in order:\n  1. The admin folders create test records.\n  2. **14. Public website** reads them back the way the website does.\n  3. **15. Enquiries** works on the enquiry the public form just sent.\n  4. **16. Cleanup** deletes everything the run created.\n  5. **17. Sign out** logs out.\n\n  Each run uses fresh names (`…-<runId>`), so you can run it again and again.\n\n### Is a full run safe on real data?\n\nThe run is built to leave existing data as it was:\n\n- **Edits to existing data copy the current values first.** *Save site settings*, *Update business* and *Save\n  hall* send back exactly what the GET before them returned, so they change nothing. To really edit, replace\n  the body; each request's description has an example.\n- **Test records are clearly marked.** They use \"Postman\" in their names, and the test testimonial and SEO\n  entry are inactive or `noindex`. Cleanup deletes every one of them by its saved ID.\n- **Hall dates are far in the future.** The test booking and the test enquiry use random dates one to two\n  years ahead.\n\nTwo parts are **not** safe on production:\n\n- **Emails:** *Invite admin user* and *Send password reset* send real Supabase emails to a throwaway\n  `postman-<runId>@example.com` address. *Forgot password* sends one to `adminEmail`.\n- **The test enquiry stays:** the API cannot delete enquiries, so the one sent from **14. Public website**\n  remains in the enquiry list.\n\nUse Local or Staging for full runs.\n\n## 5. Command line (CI)\n\nThe Postman CLI can run the same collection:\n\n```bash\npostman collection run postman/Sreebhavan-API.postman_collection.json \\\n  -e postman/Sreebhavan-Local.postman_environment.json \\\n  --env-var adminPassword='<password>' \\\n  --working-dir .\n```\n\n`--working-dir .` (run from the repo root) lets *Upload file* find `postman/sample.png`. Override any\nenvironment value with `--env-var key=value`, and use `-i \"7. Rooms\"` to run a single folder.\n\n## Collection variables\n\nThe scripts set these. You can also edit them under the collection's **Variables** tab.\n\n| Variable | Set by | Meaning |\n|---|---|---|\n| `accessToken` | Login | Bearer token for every admin request (cleared by Logout) |\n| `runId` | First request | Makes test slugs and emails unique |\n| `month` | First request | Current month, `YYYY-MM` |\n| `futureDate`, `enquiryDate` | First request | Random dates 1–2 years ahead |\n| `businessId`, `hotelBusinessId` | List businesses | Sreebhavanam and the hotel |\n| `bannerId`, `categoryId`, `itemId`, `cardId`, `roomId`, `roomImageId`, `packageId`, `hallImageId`, `bookingId`, `albumId`, `galleryImageId`, `testimonialId`, `faqId`, `seoId`, `userId`, `enquiryId` | The matching *Create* request | IDs for update and delete |\n| `uploadUrl`, `uploadThumbUrl` | Upload file | Used by *Add photos (bulk)* |\n\nTo start over, clear the values in the **Variables** tab.\n\n## Responses and errors\n\nResults are in `data`, and paginated lists add `meta`:\n\n```json\n{ \"success\": true, \"status_code\": 200, \"message\": \"Rooms fetched successfully\", \"data\": [] }\n```\n\nErrors put the fields to fix in `errors`:\n\n```json\n{ \"success\": false, \"status_code\": 422, \"message\": \"Validation failed\",\n  \"errors\": [{ \"field\": \"name\", \"message\": \"Name is required.\" }] }\n```\n\n| Status | Meaning |\n|---|---|\n| 401 | Token missing or expired. Run **Login** again. |\n| 403 | Staff calling an owner-only request (**13. Admin users**). |\n| 409 | Conflict: duplicate slug, taken hall slot, a category that still has items. |\n| 422 | Validation failed. See `errors`. |\n| 429 | Too many enquiries from this IP. Wait `Retry-After` seconds. |\n\nWhen a request fails, the Postman console prints the error message and fields.\n\n## Keeping it up to date\n\nThe collection is generated from the FastAPI app:\n\n```bash\nuv run python scripts/build_postman.py\n```\n\nThe build fails if an API endpoint is missing from the collection. When you add an endpoint, add it to the\nrequest list in `scripts/build_postman.py`, then rebuild and re-import.\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Values every request can use. Set once per run; override any of them in the collection variables.",
+          "const v = pm.collectionVariables;",
+          "if (!v.get(\"runId\")) v.set(\"runId\", Date.now().toString(36));",
+          "const pad = n => String(n).padStart(2, '0');",
+          "const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;",
+          "if (!v.get(\"month\")) { const d = new Date(); v.set(\"month\", `${d.getFullYear()}-${pad(d.getMonth() + 1)}`); }",
+          "if (!v.get(\"futureDate\")) {",
+          "  const d = new Date(); d.setDate(d.getDate() + 365 + Math.floor(Math.random() * 365));",
+          "  v.set(\"futureDate\", ymd(d));",
+          "}",
+          "if (!v.get(\"enquiryDate\")) {",
+          "  const d = new Date(); d.setDate(d.getDate() + 365 + Math.floor(Math.random() * 365));",
+          "  v.set(\"enquiryDate\", ymd(d));",
+          "}",
+          "if (!v.get(\"inviteEmail\")) v.set(\"inviteEmail\", `postman-${v.get(\"runId\")}@example.com`);",
+          "if (!pm.environment.get(\"rootUrl\") && !v.get(\"rootUrl\")) {",
+          "  v.set(\"rootUrl\", pm.variables.get(\"baseUrl\").replace(/\\/api\\/v1\\/?$/, \"\"));",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Every JSON response must use the standard format.",
+          "const ct = pm.response.headers.get(\"Content-Type\") || \"\";",
+          "if (ct.includes(\"application/json\")) {",
+          "  const b = pm.response.json();",
+          "  pm.test(\"Standard response format\", () => {",
+          "    pm.expect(b).to.be.an(\"object\");",
+          "    pm.expect(b.success, \"success\").to.be.a(\"boolean\");",
+          "    pm.expect(b.status_code, \"status_code matches HTTP status\").to.eql(pm.response.code);",
+          "    pm.expect(b.message, \"message\").to.be.a(\"string\").and.not.empty;",
+          "    if (b.success) { pm.expect(b).to.have.property(\"data\"); }",
+          "    else { pm.expect(b.errors, \"errors\").to.be.an(\"array\"); }",
+          "  });",
+          "  if (!b.success) console.log(`${pm.response.code} ${b.message}`, JSON.stringify(b.errors));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "runId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "month",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "futureDate",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "enquiryDate",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inviteEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rootUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "settingsBody",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "businessId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hotelBusinessId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "businessBody",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bannerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "categorySlug",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "itemId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cardId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "roomId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "roomSlug",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "roomImageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hallBody",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "packageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hallImageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uploadUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uploadThumbUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "albumId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "albumSlug",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "galleryImageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testimonialId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "faqId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "seoId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "seoPageKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "enquiryId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "description": "Run **Login** first. It saves the token used by every admin request.",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"accessToken\", body.data.access_token);",
+                  "}",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"adminId\", body.data.admin.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Signs in through FastAPI (which signs in with Supabase Auth). The access token is saved to `{{accessToken}}` and sent as a Bearer token by every admin request. Run this first."
+          }
+        },
+        {
+          "name": "Forgot password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Always returns 200, whether or not the email belongs to an admin. Sends a real Supabase reset email when it does."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Dashboard",
+      "item": [
+        {
+          "name": "Dashboard stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard/stats?month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}"
+                }
+              ]
+            },
+            "description": "Stats"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Site settings",
+      "item": [
+        {
+          "name": "Get site settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"settingsBody\", JSON.stringify(body.data, null, 2));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "settings"
+              ]
+            },
+            "description": "Also copies the current settings into `{{settingsBody}}` for the next request."
+          }
+        },
+        {
+          "name": "Save site settings",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"settingsBody\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{settingsBody}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "settings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{settingsBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Receives the whole settings object. The body is the copy taken by *Get site settings*, so running the collection changes nothing. To edit, replace the body with JSON such as:\n\n```json\n{\n  \"brand_logo_url\": null,\n  \"favicon_url\": null,\n  \"contact_phone\": \"9847000001\",\n  \"contact_email\": \"hello@example.com\",\n  \"address\": \"MC Road, Town, Kerala\",\n  \"map_embed_url\": null,\n  \"map_link_url\": null,\n  \"facebook_url\": null,\n  \"instagram_url\": null,\n  \"youtube_url\": null,\n  \"footer_text\": \"© Sreebhavan\",\n  \"google_analytics_id\": null,\n  \"search_console_verification\": null\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Businesses",
+      "item": [
+        {
+          "name": "List businesses",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json().data || [];",
+                  "const stays = list.find(b => b.slug === \"sreebhavanam\");",
+                  "const hotel = list.find(b => b.slug === \"sreebhavan-veg-hotel\");",
+                  "if (stays) {",
+                  "  pm.collectionVariables.set(\"businessId\", stays.id);",
+                  "  const { id, slug, ...editable } = stays;",
+                  "  pm.collectionVariables.set(\"businessBody\", JSON.stringify(editable, null, 2));",
+                  "}",
+                  "if (hotel) pm.collectionVariables.set(\"hotelBusinessId\", hotel.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/businesses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "businesses"
+              ]
+            },
+            "description": "Saves `{{businessId}}` (Sreebhavanam), `{{hotelBusinessId}}` and a copy of Sreebhavanam's editable fields."
+          }
+        },
+        {
+          "name": "Update business",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"businessBody\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{businessBody}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/businesses/{{businessId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "businesses",
+                "{{businessId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{businessBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The slug cannot change. `whatsapp` must be a 10-digit Indian mobile number, optionally starting with 91. The body is the copy taken by *List businesses*, so running it changes nothing. Example:\n\n```json\n{\n  \"name\": \"Sreebhavanam\",\n  \"logo_url\": null,\n  \"about\": \"Event hall and rooms.\",\n  \"whatsapp\": \"9847000002\",\n  \"phone\": \"04712345678\",\n  \"timings\": [\n    {\n      \"label\": \"Front desk\",\n      \"hours\": \"Open 24 hours\"\n    }\n  ]\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Banners",
+      "item": [
+        {
+          "name": "List banners",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/banners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "banners"
+              ]
+            },
+            "description": "List banners"
+          }
+        },
+        {
+          "name": "Create banner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"bannerId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/banners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "banners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_id\": null,\n  \"image_url\": \"https://placehold.co/1600x600.webp\",\n  \"title\": \"Pure vegetarian taste of Kerala\",\n  \"subtitle\": \"Postman test banner\",\n  \"cta_text\": \"View menu\",\n  \"cta_link\": \"/sreebhavan-veg-hotel/menu\",\n  \"sort\": 99,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`business_id: null` = home-page banner. Required: `image_url`, `title`."
+          }
+        },
+        {
+          "name": "Update banner",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"bannerId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{bannerId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/banners/{{bannerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "banners",
+                "{{bannerId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Pure vegetarian taste of Kerala (edited)\",\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Send all fields or only the ones to change."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Menu",
+      "item": [
+        {
+          "name": "List categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "categories"
+              ]
+            },
+            "description": "List menu categories"
+          }
+        },
+        {
+          "name": "Create category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"categoryId\", body.data.id);",
+                  "}",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"categorySlug\", body.data.slug);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "categories"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Breakfast\",\n  \"name_ml\": \"പ്രഭാതഭക്ഷണം\",\n  \"slug\": \"breakfast-{{runId}}\",\n  \"image_url\": null,\n  \"sort\": 1,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`slug` must be unique and look like `breakfast` (lowercase, numbers, single hyphens)."
+          }
+        },
+        {
+          "name": "Update category",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"categoryId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{categoryId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Breakfast & Tiffin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update menu category"
+          }
+        },
+        {
+          "name": "List food items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "items"
+              ]
+            },
+            "description": "List food items"
+          }
+        },
+        {
+          "name": "Create food item",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"categoryId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{categoryId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"itemId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_id\": \"{{categoryId}}\",\n  \"name\": \"Masala Dosa\",\n  \"name_ml\": \"മസാല ദോശ\",\n  \"slug\": \"masala-dosa-{{runId}}\",\n  \"price\": 70,\n  \"image_url\": null,\n  \"description\": \"Crispy dosa with potato masala, sambar and chutney.\",\n  \"is_special\": true,\n  \"is_available\": true,\n  \"sort\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create food item"
+          }
+        },
+        {
+          "name": "Toggle item available (partial)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"itemId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{itemId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "items",
+                "{{itemId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_available\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The list's quick toggles send only `is_available` or `is_special`."
+          }
+        },
+        {
+          "name": "List menu cards",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/cards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "cards"
+              ]
+            },
+            "description": "List menu cards"
+          }
+        },
+        {
+          "name": "Create menu card",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"cardId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/cards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "cards"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Full menu (Postman)\",\n  \"file_url\": \"https://example.com/menu.pdf\",\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Upload the PDF first with *Uploads › Upload file* (folder `menu/cards`) and use the returned URL."
+          }
+        },
+        {
+          "name": "Update menu card",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"cardId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{cardId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/cards/{{cardId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "cards",
+                "{{cardId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update menu card"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Rooms",
+      "item": [
+        {
+          "name": "List rooms",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms"
+              ]
+            },
+            "description": "List Rooms"
+          }
+        },
+        {
+          "name": "Create room",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"roomId\", body.data.id);",
+                  "}",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"roomSlug\", body.data.slug);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"deluxe-ac-room-{{runId}}\",\n  \"name\": \"Deluxe AC Room\",\n  \"price\": 2200,\n  \"capacity\": 2,\n  \"amenities\": [\n    \"AC\",\n    \"Wi-Fi\",\n    \"TV\"\n  ],\n  \"description\": \"Postman test room.\",\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create Room"
+          }
+        },
+        {
+          "name": "Update room",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"roomId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{roomId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms",
+                "{{roomId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 2400\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update Room"
+          }
+        },
+        {
+          "name": "Add room photo",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"roomId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{roomId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"roomImageId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms/{{roomId}}/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms",
+                "{{roomId}}",
+                "images"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://placehold.co/1200x800.webp\",\n  \"alt\": \"Deluxe room with double bed\",\n  \"sort\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`alt` is required. Upload the image first with *Uploads › Upload file* (folder `rooms`)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Event hall",
+      "item": [
+        {
+          "name": "Get hall",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"hallBody\", JSON.stringify(pm.response.json().data, null, 2));",
+                  "} else {",
+                  "  pm.collectionVariables.set(\"hallBody\", JSON.stringify({",
+                  "    name: \"Sreebhavanam Hall\", capacity_seating: 600, capacity_floating: 900,",
+                  "    facilities: [\"AC\", \"Stage\", \"Parking\"], rules: \"No outside catering.\\nMusic till 10 pm.\"",
+                  "  }, null, 2));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall"
+              ]
+            },
+            "description": "404 until the hall has been saved once. Copies the current hall (or a sample) into `{{hallBody}}`."
+          }
+        },
+        {
+          "name": "Save hall",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"hallBody\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{hallBody}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{hallBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates or replaces the hall. The body comes from *Get hall*, so existing details are kept."
+          }
+        },
+        {
+          "name": "List packages",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/packages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "packages"
+              ]
+            },
+            "description": "List hall packages"
+          }
+        },
+        {
+          "name": "Create package",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"packageId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/packages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "packages"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Wedding – full day (Postman)\",\n  \"price\": 85000,\n  \"inclusions\": [\n    \"Hall for 12 hours\",\n    \"Stage decoration\"\n  ],\n  \"sort\": 99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create hall package"
+          }
+        },
+        {
+          "name": "Update package",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"packageId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{packageId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/packages/{{packageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "packages",
+                "{{packageId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 90000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update hall package"
+          }
+        },
+        {
+          "name": "List hall photos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "images"
+              ]
+            },
+            "description": "List Hall Images"
+          }
+        },
+        {
+          "name": "Add hall photo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"hallImageId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "images"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://placehold.co/1200x800.webp\",\n  \"alt\": \"Hall stage with lights\",\n  \"sort\": 99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Add Hall Image"
+          }
+        },
+        {
+          "name": "List bookings (month)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/bookings?month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "bookings"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}"
+                }
+              ]
+            },
+            "description": "List Bookings"
+          }
+        },
+        {
+          "name": "Create booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"bookingId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "bookings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{futureDate}}\",\n  \"slot\": \"evening\",\n  \"status\": \"tentative\",\n  \"customer_name\": \"Arun (Postman)\",\n  \"phone\": \"9847012345\",\n  \"event_type\": \"Wedding\",\n  \"notes\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`slot`: morning, evening or full. `status`: booked or tentative. A `full` booking blocks morning and evening on the same date (and vice versa): the API returns 409 with the error on field `slot`. `{{futureDate}}` is a random date 1–2 years ahead."
+          }
+        },
+        {
+          "name": "Double booking is refused (409)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"bookingId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{bookingId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "bookings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{futureDate}}\",\n  \"slot\": \"full\",\n  \"status\": \"booked\",\n  \"customer_name\": \"Clash\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Same date as *Create booking*: a full-day booking clashes with the evening one."
+          }
+        },
+        {
+          "name": "Update booking",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"bookingId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{bookingId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/bookings/{{bookingId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "bookings",
+                "{{bookingId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"booked\",\n  \"notes\": \"Advance paid\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update Booking"
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Uploads",
+      "item": [
+        {
+          "name": "Upload file",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"uploadUrl\", body.data.url);",
+                  "}",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"uploadThumbUrl\", body.data.thumb_url);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/uploads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "uploads"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "folder",
+                  "type": "text",
+                  "value": "gallery"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "postman/sample.png"
+                }
+              ]
+            },
+            "description": "multipart/form-data. `folder`: logos, banners, menu/items, menu/cards, rooms, hall, gallery, testimonials, seo. Images (JPEG, PNG, WebP) are resized and converted to WebP with a thumbnail; `menu/cards` also takes PDF; `logos` also takes SVG and ICO. Max 5 MB. In the Postman app, pick the file in the Body tab (`postman/sample.png` is included). Saves `{{uploadUrl}}` and `{{uploadThumbUrl}}`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Gallery",
+      "item": [
+        {
+          "name": "List albums",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/albums",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "albums"
+              ]
+            },
+            "description": "List Albums"
+          }
+        },
+        {
+          "name": "Create album",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"albumId\", body.data.id);",
+                  "}",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"albumSlug\", body.data.slug);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/albums",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "albums"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"wedding-arun-meera-{{runId}}\",\n  \"title\": \"Wedding of Arun & Meera\",\n  \"category\": \"past-events\",\n  \"cover_url\": null,\n  \"sort\": 99,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`category`: rooms, hall, past-events, food, exterior."
+          }
+        },
+        {
+          "name": "Get album",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"albumId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{albumId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/albums/{{albumId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "albums",
+                "{{albumId}}"
+              ]
+            },
+            "description": "Read Album"
+          }
+        },
+        {
+          "name": "Add photos (bulk)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"albumId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{albumId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}",
+                  "if (!pm.collectionVariables.get(\"uploadUrl\")) {",
+                  "  pm.collectionVariables.set(\"uploadUrl\", \"https://placehold.co/1600x1000.webp\");",
+                  "  pm.collectionVariables.set(\"uploadThumbUrl\", \"https://placehold.co/480x300.webp\");",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"galleryImageId\", body.data[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "images"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"album_id\": \"{{albumId}}\",\n  \"images\": [\n    {\n      \"url\": \"{{uploadUrl}}\",\n      \"thumb_url\": \"{{uploadThumbUrl}}\",\n      \"alt\": \"Bride and groom on stage\",\n      \"caption\": null,\n      \"sort\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Files are uploaded first with *Uploads › Upload file*; this saves their URLs. `alt` is required on every photo."
+          }
+        },
+        {
+          "name": "List album photos",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"albumId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{albumId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/images?album_id={{albumId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "images"
+              ],
+              "query": [
+                {
+                  "key": "album_id",
+                  "value": "{{albumId}}"
+                }
+              ]
+            },
+            "description": "List Images"
+          }
+        },
+        {
+          "name": "Update photo",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"galleryImageId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{galleryImageId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/images/{{galleryImageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "images",
+                "{{galleryImageId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alt\": \"Couple on the decorated stage\",\n  \"caption\": \"Reception\",\n  \"sort\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update Image"
+          }
+        },
+        {
+          "name": "Set album cover (partial)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"albumId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{albumId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/albums/{{albumId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "albums",
+                "{{albumId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cover_url\": \"{{uploadThumbUrl}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update Album"
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Testimonials & FAQs",
+      "item": [
+        {
+          "name": "List testimonials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/testimonials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "testimonials"
+              ]
+            },
+            "description": "List testimonials"
+          }
+        },
+        {
+          "name": "Create testimonial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"testimonialId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/testimonials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "testimonials"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lakshmi\",\n  \"text\": \"Best masala dosa in town.\",\n  \"rating\": 5,\n  \"business_id\": \"{{hotelBusinessId}}\",\n  \"sort\": 99,\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`rating` 1–5. `business_id: null` = shown for both businesses. Created inactive so it never appears on the live site."
+          }
+        },
+        {
+          "name": "Update testimonial",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"testimonialId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{testimonialId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/testimonials/{{testimonialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "testimonials",
+                "{{testimonialId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update testimonial"
+          }
+        },
+        {
+          "name": "List FAQs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/faqs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "faqs"
+              ]
+            },
+            "description": "List FAQs"
+          }
+        },
+        {
+          "name": "Create FAQ",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"faqId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/faqs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "faqs"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_id\": null,\n  \"question\": \"How many guests does the hall seat? (Postman)\",\n  \"answer\": \"600 seated.\",\n  \"sort\": 99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create faq"
+          }
+        },
+        {
+          "name": "Update FAQ",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"faqId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{faqId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/faqs/{{faqId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "faqs",
+                "{{faqId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answer\": \"600 seated, 900 floating.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update faq"
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. SEO",
+      "item": [
+        {
+          "name": "List SEO entries",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/seo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "seo"
+              ]
+            },
+            "description": "List SEO entries"
+          }
+        },
+        {
+          "name": "Create SEO entry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"seoId\", body.data.id);",
+                  "}",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"seoPageKey\", body.data.page_key);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/seo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "seo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"page_key\": \"room/postman-{{runId}}\",\n  \"title\": \"Rooms in Town | Sreebhavanam\",\n  \"description\": \"Clean AC and non-AC rooms near the town centre.\",\n  \"og_image\": null,\n  \"keywords\": \"rooms in town, ac rooms\",\n  \"noindex\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`page_key`: a page (`home`, `rooms`, `event-hall`, ...) or an item (`room/<slug>`, `menu/<slug>`, `gallery/<slug>`). `title` up to 60 characters, `description` up to 160."
+          }
+        },
+        {
+          "name": "Update SEO entry",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"seoId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{seoId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/seo/{{seoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "seo",
+                "{{seoId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Clean AC rooms near the town centre, free Wi-Fi.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update seo entry"
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Admin users",
+      "item": [
+        {
+          "name": "List admin users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ]
+            },
+            "description": "Owner only: staff get 403."
+          }
+        },
+        {
+          "name": "Invite admin user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"userId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Front Desk\",\n  \"email\": \"{{inviteEmail}}\",\n  \"role\": \"staff\",\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Owner only: staff get 403. Sends a Supabase invite email to `{{inviteEmail}}` (default: a throwaway `postman-<run>@example.com`). 409 if the email is already an admin."
+          }
+        },
+        {
+          "name": "Update admin user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{userId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Front Desk (evening)\",\n  \"email\": \"{{inviteEmail}}\",\n  \"role\": \"staff\",\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Owner only: staff get 403. Changes to `email` are ignored. You cannot demote, deactivate or delete yourself (409)."
+          }
+        },
+        {
+          "name": "Send password reset",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{userId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{userId}}/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{userId}}",
+                "reset-password"
+              ]
+            },
+            "description": "Owner only: staff get 403."
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Public website",
+      "description": "No login. These are the endpoints the user website calls.",
+      "item": [
+        {
+          "name": "Site settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "settings"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Settings"
+          }
+        },
+        {
+          "name": "Business by slug",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/businesses/sreebhavanam",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "businesses",
+                "sreebhavanam"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Business"
+          }
+        },
+        {
+          "name": "Home banners",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/banners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "banners"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Add `?business=sreebhavan-veg-hotel` for a business's banners."
+          }
+        },
+        {
+          "name": "Menu categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/menu/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "menu",
+                "categories"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Menu Categories"
+          }
+        },
+        {
+          "name": "Menu items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/menu/items?category={{categorySlug}}&special=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "menu",
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "{{categorySlug}}"
+                },
+                {
+                  "key": "special",
+                  "value": "true"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Both filters are optional. `special=true` gives today's specials."
+          }
+        },
+        {
+          "name": "Menu cards",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/menu/cards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "menu",
+                "cards"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Menu Cards"
+          }
+        },
+        {
+          "name": "Rooms",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "rooms"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Rooms"
+          }
+        },
+        {
+          "name": "Room by slug",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/rooms/{{roomSlug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "rooms",
+                "{{roomSlug}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Room"
+          }
+        },
+        {
+          "name": "Hall",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/hall",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "hall"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Hall"
+          }
+        },
+        {
+          "name": "Hall packages",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/hall/packages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "hall",
+                "packages"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Hall Packages"
+          }
+        },
+        {
+          "name": "Hall availability",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/hall/availability?month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "hall",
+                "availability"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "{{month}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Only `{ date, slot, status }`: never customer details."
+          }
+        },
+        {
+          "name": "Gallery albums",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/gallery/albums",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "gallery",
+                "albums"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Albums"
+          }
+        },
+        {
+          "name": "Album by slug",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/gallery/albums/{{albumSlug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "gallery",
+                "albums",
+                "{{albumSlug}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Album"
+          }
+        },
+        {
+          "name": "Testimonials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/testimonials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "testimonials"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Testimonials"
+          }
+        },
+        {
+          "name": "FAQs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/faqs?business=sreebhavanam",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "faqs"
+              ],
+              "query": [
+                {
+                  "key": "business",
+                  "value": "sreebhavanam"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Faqs"
+          }
+        },
+        {
+          "name": "SEO for a page",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/seo/{{seoPageKey}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "seo",
+                "{{seoPageKey}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Item keys contain a slash, e.g. `/public/seo/room/deluxe-ac-room`."
+          }
+        },
+        {
+          "name": "Sitemap data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/sitemap-data",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "sitemap-data"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Sitemap Data"
+          }
+        },
+        {
+          "name": "Send enquiry (hall)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"enquiryId\", body.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/public/enquiries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "enquiries"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"hall\",\n  \"name\": \"Arun (Postman)\",\n  \"phone\": \"9847012345\",\n  \"email\": null,\n  \"date_from\": \"{{enquiryDate}}\",\n  \"date_to\": null,\n  \"slot\": \"morning\",\n  \"guests\": 400,\n  \"event_type\": \"Wedding\",\n  \"message\": \"Postman test enquiry.\",\n  \"website\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Saves the enquiry, then returns `data.whatsapp_url` (a wa.me link with the message filled in). `hall` needs `date_from` + `slot`; `room` needs `room_id` or `room_slug`; `hotel` needs neither. `website` is a honeypot and must stay empty. Rate limited per IP (429 with `Retry-After`)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Enquiries",
+      "item": [
+        {
+          "name": "List enquiries (paginated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/enquiries?page=1&per_page=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "enquiries"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "All filters are optional (empty values are ignored). `q` searches name and phone. Pagination is in `meta`."
+          }
+        },
+        {
+          "name": "Update enquiry status",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"enquiryId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{enquiryId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/enquiries/{{enquiryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "enquiries",
+                "{{enquiryId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"contacted\",\n  \"admin_notes\": \"Called back, visiting Saturday.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Partial: only `status` (new, contacted, confirmed, cancelled) and `admin_notes`."
+          }
+        },
+        {
+          "name": "Export enquiries (CSV)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Is a CSV file\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/csv\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/enquiries/export.csv?status=contacted",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "enquiries",
+                "export.csv"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "contacted"
+                }
+              ]
+            },
+            "description": "A file download (no JSON envelope). Same filters as the list, not paginated. Use *Send and Download* in the Postman app."
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Cleanup (deletes test data)",
+      "description": "Deletes only the records this collection created (by saved id).",
+      "item": [
+        {
+          "name": "Delete hall booking",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"bookingId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{bookingId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"bookingId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/bookings/{{bookingId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "bookings",
+                "{{bookingId}}"
+              ]
+            },
+            "description": "Delete Booking"
+          }
+        },
+        {
+          "name": "Delete hall photo",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"hallImageId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{hallImageId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"hallImageId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/images/{{hallImageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "images",
+                "{{hallImageId}}"
+              ]
+            },
+            "description": "Delete Hall Image"
+          }
+        },
+        {
+          "name": "Delete hall package",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"packageId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{packageId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"packageId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/hall/packages/{{packageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "hall",
+                "packages",
+                "{{packageId}}"
+              ]
+            },
+            "description": "Delete hall package"
+          }
+        },
+        {
+          "name": "Delete room photo",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"roomImageId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{roomImageId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"roomImageId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms/{{roomId}}/images/{{roomImageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms",
+                "{{roomId}}",
+                "images",
+                "{{roomImageId}}"
+              ]
+            },
+            "description": "Delete Room Image"
+          }
+        },
+        {
+          "name": "Delete room",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"roomId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{roomId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"roomId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "rooms",
+                "{{roomId}}"
+              ]
+            },
+            "description": "Delete Room"
+          }
+        },
+        {
+          "name": "Delete gallery photo",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"galleryImageId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{galleryImageId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"galleryImageId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/images/{{galleryImageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "images",
+                "{{galleryImageId}}"
+              ]
+            },
+            "description": "Delete Image"
+          }
+        },
+        {
+          "name": "Delete album (and its photos)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"albumId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{albumId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"albumId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/gallery/albums/{{albumId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "gallery",
+                "albums",
+                "{{albumId}}"
+              ]
+            },
+            "description": "Delete Album"
+          }
+        },
+        {
+          "name": "Delete food item",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"itemId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{itemId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"itemId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "items",
+                "{{itemId}}"
+              ]
+            },
+            "description": "Delete food item"
+          }
+        },
+        {
+          "name": "Delete category",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"categoryId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{categoryId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"categoryId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "Deleting a category that still has food items returns 409."
+          }
+        },
+        {
+          "name": "Delete menu card",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"cardId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{cardId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"cardId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/menu/cards/{{cardId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "menu",
+                "cards",
+                "{{cardId}}"
+              ]
+            },
+            "description": "Delete menu card"
+          }
+        },
+        {
+          "name": "Delete banner",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"bannerId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{bannerId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"bannerId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/banners/{{bannerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "banners",
+                "{{bannerId}}"
+              ]
+            },
+            "description": "Delete banner"
+          }
+        },
+        {
+          "name": "Delete testimonial",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"testimonialId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{testimonialId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"testimonialId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/testimonials/{{testimonialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "testimonials",
+                "{{testimonialId}}"
+              ]
+            },
+            "description": "Delete testimonial"
+          }
+        },
+        {
+          "name": "Delete FAQ",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"faqId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{faqId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"faqId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/faqs/{{faqId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "faqs",
+                "{{faqId}}"
+              ]
+            },
+            "description": "Delete faq"
+          }
+        },
+        {
+          "name": "Delete SEO entry",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"seoId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{seoId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"seoId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/seo/{{seoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "seo",
+                "{{seoId}}"
+              ]
+            },
+            "description": "Delete seo entry"
+          }
+        },
+        {
+          "name": "Delete admin user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userId\")) {",
+                  "  console.log(\"Skipped: run the request that sets {{userId}} first.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 404]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "pm.collectionVariables.unset(\"userId\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Delete User"
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. Sign out",
+      "item": [
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is one of [200, 401]\", () => pm.expect(pm.response.code).to.be.oneOf([200, 401]));",
+                  "pm.collectionVariables.unset(\"accessToken\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revokes the Supabase session and clears `{{accessToken}}`."
+          }
+        },
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{rootUrl}}/health",
+              "host": [
+                "{{rootUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Health"
+          }
+        }
+      ]
+    }
+  ]
+}
